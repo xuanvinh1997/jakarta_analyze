@@ -1,0 +1,14 @@
+*.mp4
+__pycache__/
+output/
+*.pyc
+*.pkl
+outputs/
+venv/
+*.egg-info/
+models/
+logs/
+*.weights
+*.pt
+*.zip
+*.tar
