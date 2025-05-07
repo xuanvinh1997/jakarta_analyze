@@ -1,0 +1,23 @@
+dirs:
+    # Directories containing input files
+    raw_videos: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/downloaded_videos/
+    scripts: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/scratch/scripts/
+    
+    # Directories for output files
+    logs: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/logs/
+    frame_stats: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/frame_stats/
+    packet_stats: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/packet_stats/
+    subtitles: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/subtitles/
+    errors: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/errors/
+    s3_videos: s3://jakarta-traffic-safety/videos/
+    visualizations: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/visualizations/
+    output_videos: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/videos/
+    output: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/
+    video_samples: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/outputs/video_samples/
+    downloaded_videos: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/downloaded_videos/
+
+
+files:
+    cameras: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/camera_urls.yml
+    camera_urls: /mnt/d/Workspaces/jakarta_smart_city_traffic_safety_public/camera_urls.yml
+

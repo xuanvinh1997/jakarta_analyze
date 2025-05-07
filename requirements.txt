@@ -1,0 +1,12 @@
+keras
+opencv-python
+opencv-contrib-python
+numpy<2
+schedule
+requests
+PyYAML
+ultralytics
+torch
+moviepy
+pandas
+scikit-learn

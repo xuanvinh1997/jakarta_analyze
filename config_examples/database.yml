@@ -1,0 +1,12 @@
+database:
+  host: localhost
+  port: 5432
+  dbname: jakarta_traffic  # Changed from 'name' to 'dbname'
+  user: jakarta
+  password: jakarta_password
+  schema: results
+  tables:
+    boxes: boxes
+    motion: box_motion
+  connection_pool: 5
+  timeout: 30

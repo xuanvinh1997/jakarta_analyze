@@ -1,0 +1,8 @@
+# Example camera URLs for Jakarta traffic CCTV
+# Add or remove camera URLs as needed
+# Each URL should be a direct link to a camera stream
+- "https://cctv.balitower.co.id/Bendungan-Hilir-003-700014_3"
+# - "https://cctv.balitower.co.id/Pluit-035-701162_3"
+# - "https://cctv.balitower.co.id/Cipinang-Cempedak-006-704139_2"
+# - "https://cctv.balitower.co.id/Kebon-Jeruk-004-702037_4"
+# - "https://cctv.balitower.co.id/Kebon-Jeruk-004-702037_3"
