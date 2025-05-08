@@ -1,8 +1,32 @@
 # Example camera URLs for Jakarta traffic CCTV
 # Add or remove camera URLs as needed
 # Each URL should be a direct link to a camera stream
+
+- "https://cctv.balitower.co.id/Bendungan-Hilir-003-700014_1"
+- "https://cctv.balitower.co.id/Bendungan-Hilir-003-700014_2"
 - "https://cctv.balitower.co.id/Bendungan-Hilir-003-700014_3"
-# - "https://cctv.balitower.co.id/Pluit-035-701162_3"
-# - "https://cctv.balitower.co.id/Cipinang-Cempedak-006-704139_2"
-# - "https://cctv.balitower.co.id/Kebon-Jeruk-004-702037_4"
-# - "https://cctv.balitower.co.id/Kebon-Jeruk-004-702037_3"
+- "https://cctv.balitower.co.id/Bendungan-Hilir-003-700014_4"
+
+- "https://cctv.balitower.co.id/Gelora-017-700470_1"
+- "https://cctv.balitower.co.id/Gelora-017-700470_2"
+- "https://cctv.balitower.co.id/Gelora-017-700470_3"
+- "https://cctv.balitower.co.id/Gelora-017-700470_4"
+- "https://cctv.balitower.co.id/Gelora-017-700470_5"
+- "https://cctv.balitower.co.id/Gelora-017-700470_6"
+- "https://cctv.balitower.co.id/Gelora-017-700470_7"
+- "https://cctv.balitower.co.id/Gelora-017-700470_8"
+- "https://cctv.balitower.co.id/Gelora-017-700470_9"
+- "https://cctv.balitower.co.id/Gelora-017-700470_10"
+- "https://cctv.balitower.co.id/Gelora-017-700470_11"
+- "https://cctv.balitower.co.id/Gelora-017-700470_12"
+
+- "https://cctv.balitower.co.id/GBK_C10_01"
+- "https://cctv.balitower.co.id/GBK_C10_02"
+- "https://cctv.balitower.co.id/GBK_C10_03"
+- "https://cctv.balitower.co.id/GBK_C10_04"
+- "https://cctv.balitower.co.id/GBK_C10_05"
+
+- "https://cctv.balitower.co.id/Senayan-004-705087_1"
+- "https://cctv.balitower.co.id/Senayan-004-705087_2"
+- "https://cctv.balitower.co.id/Senayan-004-705087_3"
+- "https://cctv.balitower.co.id/Senayan-004-705087_4"

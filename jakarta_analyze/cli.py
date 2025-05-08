@@ -32,7 +32,25 @@ def main():
     # Extract Video Metadata command
     extract_parser = subparsers.add_parser('extract-metadata', 
                                            help='Extract metadata from video files')
+    extract_parser.add_argument('-c', '--config',
+                              help='Path to YAML config file')
+    extract_parser.add_argument('-v', '--videos-dir',
+                              help='Directory containing videos to process (overrides config)')
     extract_parser.add_argument('-l', '--log', choices=['debug', 'info', 'warning', 'error'],
+                              default='info', help='Logging level')
+    
+    # Visualize Metadata command
+    visualize_parser = subparsers.add_parser('visualize-metadata',
+                                           help='Visualize extracted video metadata')
+    visualize_parser.add_argument('-c', '--config',
+                              help='Path to YAML config file')
+    visualize_parser.add_argument('-v', '--videos-dir',
+                              help='Directory containing videos to process (overrides config)')
+    visualize_parser.add_argument('-o', '--output-dir',
+                              help='Directory to save visualizations (overrides config)')
+    visualize_parser.add_argument('--format', choices=['pdf', 'png', 'jpg'], 
+                              default='pdf', help='Output format for visualizations')
+    visualize_parser.add_argument('-l', '--log', choices=['debug', 'info', 'warning', 'error'],
                               default='info', help='Logging level')
     
     # Download Videos command
@@ -73,8 +91,26 @@ def main():
     if args.command == 'extract-metadata':
         # Import the module dynamically
         module = importlib.import_module('jakarta_analyze.main.extract_video_metadata')
-        # Call the main function
-        return module.main()
+        # Call the main function with parsed arguments
+        cmd_args = []
+        if args.config:
+            cmd_args.extend(['--config', args.config])
+        if args.videos_dir:
+            cmd_args.extend(['--videos-dir', args.videos_dir])
+        return module.main(cmd_args)
+    elif args.command == 'visualize-metadata':
+        # Import the module dynamically
+        module = importlib.import_module('jakarta_analyze.main.visualize_metadata')
+        # Call the main function with parsed arguments
+        cmd_args = []
+        if args.config:
+            cmd_args.extend(['--config', args.config])
+        if args.videos_dir:
+            cmd_args.extend(['--videos-dir', args.videos_dir])
+        if args.output_dir:
+            cmd_args.extend(['--output-dir', args.output_dir])
+        cmd_args.extend(['--format', args.format])
+        return module.main(cmd_args)
     elif args.command == 'download':
         # Import the module dynamically
         module = importlib.import_module('jakarta_analyze.main.download_videos')

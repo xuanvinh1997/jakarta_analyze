@@ -16,6 +16,23 @@ validation:
     disregard_region: 0.5  # validation scripts will drop boxes whose bottom is in top fraction of frame. this sets that fraction
     model_numbers: [40]  # which models should be validated?
     minimum_motion: [1,3,10] # values of minimum motion (in pixels) for which to draw histograms of angles
+dirs:
+    # Directories containing input files
+    raw_videos: downloaded_videos/
+    scripts: scratch/scripts/
+    
+    # Directories for output files
+    logs: outputs/logs/
+    frame_stats: outputs/frame_stats/
+    packet_stats: outputs/packet_stats/
+    subtitles: outputs/subtitles/
+    errors: outputs/errors/
+    # s3_videos: s3://jakarta-traffic-safety/videos/
+    visualizations: outputs/visualizations/
+    output_videos: outputs/videos/
+    output: outputs/
+    video_samples: outputs/video_samples/
+    downloaded_videos: downloaded_videos/
 
 # Database connection settings
 database:
