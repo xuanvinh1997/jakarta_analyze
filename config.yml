@@ -36,14 +36,12 @@ dirs:
 
 # Database connection settings
 database:
-  host: localhost
-  port: 5432
-  dbname: jakarta_traffic
-  user: jakarta
-  password: jakarta_password
-  schema: results
-  tables:
-    boxes: boxes
-    motion: box_motion
+  # MongoDB settings
+  mongo_uri: "mongodb://localhost:27017"
+  dbname: "jakarta_traffic"
+  collections:
+    videos: "videos"
+    boxes: "boxes"
+    motion: "box_motion"
   connection_pool: 5
   timeout: 30

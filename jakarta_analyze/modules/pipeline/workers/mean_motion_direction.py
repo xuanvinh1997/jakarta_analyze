@@ -47,25 +47,44 @@ class MeanMotionDirection(PipelineWorker):
         Args:
             item: Item containing optical flow and object detection data
         """
-        # Check if required keys exist
-        if (self.points_key not in item) or (self.flows_key not in item) or (self.boxes_key not in item):
-            missing_keys = []
-            if self.points_key not in item:
-                missing_keys.append(self.points_key)
-            if self.flows_key not in item:
-                missing_keys.append(self.flows_key)
-            if self.boxes_key not in item:
-                missing_keys.append(self.boxes_key)
-                
-            self.logger.warning(f"Missing required keys: {', '.join(missing_keys)}")
-            # Still pass the item along to not break the pipeline
+        # self.logger.warning(f"Processing item: {item.keys()}")
+        
+        # Define fallback keys for points and flows
+        points_fallbacks = ["points", "tracked_points"]
+        flows_fallbacks = ["flows", "tracked_flows"]
+        boxes_fallbacks = ["boxes", "detected_boxes"]
+        
+        # Try to get the actual keys to use
+        points_key_to_use = self._get_first_available_key(item, self.points_key, points_fallbacks)
+        flows_key_to_use = self._get_first_available_key(item, self.flows_key, flows_fallbacks)
+        boxes_key_to_use = self._get_first_available_key(item, self.boxes_key, boxes_fallbacks)
+        
+        # Check if we have all the keys we need
+        missing_data = False
+        if points_key_to_use is None:
+            # self.logger.warning(f"Missing points data. Tried keys: {self.points_key} and {points_fallbacks}")
+            missing_data = True
+        
+        if flows_key_to_use is None:
+            # self.logger.warning(f"Missing flows data. Tried keys: {self.flows_key} and {flows_fallbacks}")
+            missing_data = True
+            
+        if boxes_key_to_use is None:
+            # self.logger.warning(f"Missing boxes data. Tried keys: {self.boxes_key} and {boxes_fallbacks}")
+            missing_data = True
+            
+        if missing_data:
+            # Create empty results to avoid errors downstream
+            item["points_grouped_by_box"] = []
+            item["points_grouped_by_box_header"] = "box_idx,num_points,mean_dx,mean_dy,magnitude,angle_radians,angle_degrees"
+            item["box_id"] = []
             self.done_with_item(item)
             return
             
-        # Get data from item
-        points = item[self.points_key]
-        flows = item[self.flows_key]
-        boxes = item[self.boxes_key]
+        # Get data from item using the keys we found
+        points = item[points_key_to_use]
+        flows = item[flows_key_to_use]
+        boxes = item[boxes_key_to_use]
         
         # Validate data before processing
         if not isinstance(points, np.ndarray) or not isinstance(flows, np.ndarray):
@@ -109,6 +128,30 @@ class MeanMotionDirection(PipelineWorker):
         """Shutdown operations
         """
         self.logger.info("Shutting down MeanMotionDirection worker")
+    
+    def _get_first_available_key(self, item, primary_key, fallback_keys):
+        """Find the first available key from a list of keys
+        
+        Args:
+            item (dict): Dictionary to search for keys
+            primary_key (str): First key to try
+            fallback_keys (list): List of fallback keys to try
+            
+        Returns:
+            str or None: First key found in the item, or None if none found
+        """
+        # First try the primary key
+        if primary_key in item:
+            return primary_key
+            
+        # Then try the fallbacks
+        for key in fallback_keys:
+            if key in item:
+                # self.logger.warning(f"Key '{primary_key}' not found, using '{key}' instead")
+                return key
+                
+        # No keys found
+        return None
     
     def _group_points_by_box(self, points, flows, boxes):
         """Group tracked points by the box they belong to

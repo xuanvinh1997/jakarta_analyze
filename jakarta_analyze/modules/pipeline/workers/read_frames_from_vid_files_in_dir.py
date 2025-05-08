@@ -76,13 +76,13 @@ class ReadFramesFromVidFilesInDir(PipelineWorker):
             if info_dict is None:
                 self.logger.error(f"Cannot get video info for: {vid_file}, skipping")
                 continue
-                
+            # self.logger.warning(f"Video info: {info_dict}")
             # Extract video parameters
             self.height = info_dict["height"]
             self.width = info_dict["width"]
             self.path = info_dict["file_path"]
             self.fps = info_dict["fps"]
-            self.uuid = info_dict["id"]
+            self.uuid = info_dict["_id"]
             
             # Full path to the video file
             path = os.path.join(self.vid_dir, vid_file)

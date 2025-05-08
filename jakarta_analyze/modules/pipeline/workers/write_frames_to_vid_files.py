@@ -53,16 +53,31 @@ class WriteFramesToVidFiles(PipelineWorker):
             self.base_name = self.vid_info["file_name"].split('.')[0] if "file_name" in self.vid_info else "output"
             self.imsize = 3 * self.vid_info["height"] * self.vid_info["width"]
             self.logger.info(f"New video info: {self.vid_info['file_name'] if 'file_name' in self.vid_info else 'unknown'}")
+        # self.logger.warning(f"Processing item: {item.keys()}")
+        
+        # Look for the primary frame key, or fall back to alternatives if not found
+        frame_key_to_use = self.frame_key
+        if self.frame_key not in item:
+            # Try fallback keys: boxed_frame, frame or any key ending with "frame"
+            fallback_keys = ["boxed_frame", "frame"]
+            frame_keys = [k for k in item.keys() if "frame" in k.lower()]
+            possible_keys = fallback_keys + frame_keys
             
-        # Add frame to buffer
-        if self.frame_key in item:
-            frame = item[self.frame_key]
+            for key in possible_keys:
+                if key in item:
+                    frame_key_to_use = key
+                    # self.logger.warning(f"Frame key '{self.frame_key}' not found, using '{key}' instead")
+                    break
+        
+        # Add frame to buffer if a usable frame key was found
+        if frame_key_to_use in item:
+            frame = item[frame_key_to_use]
             self.buffer.append(frame.tobytes())
             self.frame_count += 1
             
             # If buffer is full, write to file
             if len(self.buffer) >= self.buffer_size:
-                outpath = os.path.join(self.out_path, f"{self.base_name}_{self.frame_key}_model_{self.model_number}_part_{self.part}.mkv")
+                outpath = os.path.join(self.out_path, f"{self.base_name}_{frame_key_to_use}_model_{self.model_number}_part_{self.part}.mkv")
                 self.logger.info(f"Writing {len(self.buffer)} frames to video file: {outpath}")
                 
                 # Use ffmpeg to write frames to file
@@ -78,7 +93,7 @@ class WriteFramesToVidFiles(PipelineWorker):
                 self.buffer = []
                 self.part += 1
         else:
-            self.logger.warning(f"Frame key '{self.frame_key}' not found in item")
+            self.logger.warning(f"Frame key '{self.frame_key}' not found in item and no suitable alternatives found. Available keys: {item.keys()}")
 
     def shutdown(self):
         """Send videos to outpath and shutdown

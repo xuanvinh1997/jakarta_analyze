@@ -80,25 +80,26 @@ pipeline:
     output_queue_size: null
     prev_task: objectDetect
     schemas:
-    - results
+    - results  # MongoDB ignores this but kept for compatibility
     tables:
-    - boxes
+    - boxes   # This maps to the collection name in MongoDB
     worker_type: WriteKeysToDatabaseTable
-    # Define the exact columns in the same order as the database table
+    # Define columns matching MongoDB document structure
     columns:
-    - box_id
+    - video_id  # changed from video_name to video_id to match MongoDB naming
     - frame_number
-    - video_name
-    - label
+    - box_id
+    - class_name  # changed from label to class_name to match MongoDB naming
     - confidence
-    - x_min
-    - y_min
-    - x_max
-    - y_max
-    # Define how to map data from the boxes key to the database columns
+    - x1         # Using x1,y1,x2,y2 format for MongoDB
+    - y1
+    - x2
+    - y2
+    # Define transforms for MongoDB document structure
     transforms:
       boxes:
-        format: "{box_id},{frame_number},{video_name},{class_name},{confidence},{x1},{y1},{x2},{y2}"
+        format: "{video_id},{frame_number},{box_id},{class_name},{confidence},{x1},{y1},{x2},{y2}"
+
   - additional_data:
     - box_id
     buffer_size: 50
@@ -110,25 +111,24 @@ pipeline:
     output_queue_size: null
     prev_task: meanMotion
     schemas:
-    - results
+    - results  # MongoDB ignores this but kept for compatibility
     tables:
-    - box_motion
+    - box_motion  # This maps to the collection name in MongoDB
     worker_type: WriteKeysToDatabaseTable
-    # Define columns matching the exact order in the database schema
+    # Define columns matching MongoDB document structure
     columns:
-    - box_id
+    - video_id  # changed from video_name to video_id to match MongoDB naming
     - frame_number
-    - video_name
-    - point_count
-    - avg_motion_x
-    - avg_motion_y
-    - motion_magnitude
-    - motion_direction
-    # Define format and transformation for the data
+    - box_id
+    - num_points  # changed from point_count to num_points to match MongoDB naming
+    - mean_dx     # changed from avg_motion_x to mean_dx to match MongoDB naming  
+    - mean_dy     # changed from avg_motion_y to mean_dy to match MongoDB naming
+    - magnitude
+    - angle_degrees  # Using angle_degrees for MongoDB
+    # Define transforms for MongoDB document structure
     transforms:
       points_grouped_by_box:
-        # Map points_grouped_by_box data to database columns
-        format: "{0},{frame_number},{video_name},{1},{2},{3},{4},{6}"
+        format: "{video_id},{frame_number},{box_id},{num_points},{mean_dx},{mean_dy},{magnitude},{angle_degrees}"
   - buffer_size: 1500
     frame_key: boxed_frame
     name: writeVid

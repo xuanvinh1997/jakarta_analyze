@@ -1,43 +1,16 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:14
-    container_name: jakarta_traffic_postgres
-    restart: unless-stopped
+  mongodb:
+    image: mongo:latest
+    container_name: jakarta-mongodb
     environment:
-      POSTGRES_USER: jakarta
-      POSTGRES_PASSWORD: jakarta_password
-      POSTGRES_DB: jakarta_traffic
+      - MONGO_INITDB_DATABASE=jakarta_traffic
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d
-    networks:
-      - jakarta_network
-
-  # Optional: Add pgAdmin for database management
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: jakarta_pgadmin
+      - mongodb_data:/data/db
     restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@jakarta.local
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    networks:
-      - jakarta_network
-    depends_on:
-      - db
-
-networks:
-  jakarta_network:
-    driver: bridge
 
 volumes:
-  postgres_data:
-  pgadmin_data:
+  mongodb_data:

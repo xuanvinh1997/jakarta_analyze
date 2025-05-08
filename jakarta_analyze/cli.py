@@ -162,6 +162,14 @@ def main():
         if args.hub:
             cmd_args.append('--hub')
         return module.main(cmd_args)
+    elif args.command == 'setup-mongodb':
+        # Import the module dynamically
+        module = importlib.import_module('jakarta_analyze.scripts.setup_mongodb')
+        # Call the main function with parsed arguments
+        cmd_args = []
+        if args.drop:
+            cmd_args.append('--drop')
+        return module.setup_mongodb(cmd_args)
     else:
         logger.error(f"Unknown command: {args.command}")
         return 1

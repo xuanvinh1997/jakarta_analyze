@@ -1,11 +1,13 @@
 # ============ Base imports ======================
 import os
-import psycopg2
-import psycopg2.extras
 import json
 from contextlib import contextmanager
+from datetime import datetime
 # ====== External package imports ================
 import logging
+import pymongo
+from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 # ====== Internal package imports ================
 # ============== Logging  ========================
 from jakarta_analyze.modules.utils.setup import IndentLogger
@@ -14,12 +16,12 @@ logger = IndentLogger(logging.getLogger(''), {})
 from jakarta_analyze.modules.utils.config_loader import get_config
 conf = get_config()
 # ================================================
-logger.info("Loading Database IO module: %s", conf)
+logger.info("Loading MongoDB Database IO module")
 
 class DatabaseIO:
-    """Class for database operations
+    """Class for MongoDB database operations
     
-    This class handles connections to the PostgreSQL database and provides
+    This class handles connections to the MongoDB database and provides
     methods for common operations like querying and inserting data.
     """
     
@@ -29,104 +31,87 @@ class DatabaseIO:
         # Get database configuration
         try:
             db_config = conf.get('database', {})
-            self.host = db_config.get('host', 'localhost')
-            self.port = db_config.get('port', 5432)
+            self.mongo_uri = db_config.get('mongo_uri', 'mongodb://localhost:27017')
             self.dbname = db_config.get('dbname', 'jakarta_traffic')
-            self.user = db_config.get('user', 'postgres')
-            self.password = db_config.get('password', '')
+            self.collections_config = db_config.get('collections', {
+                'videos': 'videos',
+                'boxes': 'boxes',
+                'motion': 'box_motion'
+            })
             
-            # Build connection string and ensure password is included properly
-            if self.password:
-                self.connection_string = f"host={self.host} port={self.port} dbname={self.dbname} user={self.user} password={self.password}"
-            else:
-                # If no password is specified, remove the password parameter
-                self.connection_string = f"host={self.host} port={self.port} dbname={self.dbname} user={self.user}"
-                
-            logger.debug(f"Database connection initialized for {self.dbname} at {self.host}:{self.port}")
-            logger.debug(f"Using connection string: host={self.host} port={self.port} dbname={self.dbname} user={self.user}")
+            # Store timeout setting
+            self.timeout = db_config.get('timeout', 30000)  # MongoDB timeout in milliseconds
             
-            # Automatically create schemas and tables if they don't exist
-            self.create_tables_if_not_exist()
+            logger.debug(f"MongoDB connection initialized for {self.dbname} at {self.mongo_uri}")
+            
+            # Create initial connection to verify it works
+            self._test_connection()
+            
+            # Create indices for better query performance
+            self._create_indices()
             
         except Exception as e:
-            logger.error(f"Error initializing database connection: {str(e)}")
-            self.connection_string = ""
+            logger.error(f"Error initializing MongoDB connection: {str(e)}")
     
-    @contextmanager
-    def get_connection(self):
-        """Get a database connection
+    def _test_connection(self):
+        """Test the MongoDB connection
         
-        Context manager for obtaining a database connection and handling cleanup.
-        
-        Yields:
-            connection: Database connection object
+        Returns:
+            bool: True if connection successful, False otherwise
         """
-        connection = None
         try:
-            logger.info(f"Connecting to database: {self.connection_string}")
-            connection = psycopg2.connect(self.connection_string)
-            yield connection
-        except Exception as e:
-            logger.error(f"Database connection error: {str(e)}")
-            raise
-        finally:
-            if connection:
-                connection.close()
+            # Create a client and ping the server
+            with MongoClient(self.mongo_uri, serverSelectionTimeoutMS=self.timeout) as client:
+                client.admin.command('ping')
+                logger.info(f"Successfully connected to MongoDB at {self.mongo_uri}")
+                return True
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            logger.error(f"MongoDB connection failed: {str(e)}")
+            return False
     
-    @contextmanager
-    def get_cursor(self, cursor_factory=None):
-        """Get a database cursor
-        
-        Context manager for obtaining a database cursor and handling cleanup.
+    def _get_collection(self, collection_name):
+        """Get a MongoDB collection
         
         Args:
-            cursor_factory: Optional cursor factory to use
-            
-        Yields:
-            cursor: Database cursor object
-        """
-        with self.get_connection() as connection:
-            cursor = connection.cursor(cursor_factory=cursor_factory)
-            try:
-                yield cursor
-                connection.commit()
-            except Exception as e:
-                connection.rollback()
-                logger.error(f"Database cursor error: {str(e)}")
-                raise
-            finally:
-                cursor.close()
-    
-    def execute_query(self, query, params=None, fetch=True):
-        """Execute a database query
-        
-        Args:
-            query (str): SQL query to execute
-            params (tuple): Parameters for the query
-            fetch (bool): Whether to fetch results
+            collection_name (str): Name of the collection to get
             
         Returns:
-            list: Query results if fetch is True, None otherwise
+            Collection: MongoDB collection object
+        """
+        client = MongoClient(self.mongo_uri, serverSelectionTimeoutMS=self.timeout)
+        db = client[self.dbname]
+        return db[collection_name]
+    
+    def _create_indices(self):
+        """Create indices for better query performance
+        
+        Creates indices on commonly queried fields in collections
         """
         try:
-            with self.get_cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
-                cursor.execute(query, params)
-                if fetch:
-                    return cursor.fetchall()
-                return None
+            # Create indices for videos collection
+            videos_collection = self._get_collection(self.collections_config['videos'])
+            videos_collection.create_index('file_name', unique=True)
+            
+            # Create indices for boxes collection
+            boxes_collection = self._get_collection(self.collections_config['boxes'])
+            boxes_collection.create_index([('video_id', pymongo.ASCENDING), ('frame_number', pymongo.ASCENDING)])
+            boxes_collection.create_index('box_id')
+            
+            # Create indices for motion collection
+            motion_collection = self._get_collection(self.collections_config['motion'])
+            motion_collection.create_index([('video_id', pymongo.ASCENDING), ('frame_number', pymongo.ASCENDING)])
+            motion_collection.create_index('box_id')
+            
+            logger.info("MongoDB indices created successfully")
         except Exception as e:
-            logger.error(f"Error executing query: {str(e)}")
-            logger.error(f"Query: {query}")
-            if params:
-                logger.error(f"Params: {params}")
-            return None
+            logger.error(f"Error creating MongoDB indices: {str(e)}")
     
     def insert_many_into_table(self, schema, table, columns, values):
-        """Insert multiple rows into a table
+        """Insert multiple rows into a collection
         
         Args:
-            schema (str): Database schema
-            table (str): Table name
+            schema (str): Database schema (ignored in MongoDB, kept for compatibility)
+            table (str): Collection name
             columns (list): Column names
             values (list): List of value tuples to insert
             
@@ -137,19 +122,29 @@ class DatabaseIO:
             return True
             
         try:
-            # Build the INSERT statement
-            columns_str = ", ".join(columns)
-            placeholders = ", ".join(["%s"] * len(columns))
-            query = f"INSERT INTO {schema}.{table} ({columns_str}) VALUES ({placeholders})"
+            # Map the collection name from the config
+            collection_name = self.collections_config.get(table, table)
+            collection = self._get_collection(collection_name)
             
-            # Execute the query with multiple rows
-            with self.get_cursor() as cursor:
-                psycopg2.extras.execute_batch(cursor, query, values)
+            # Convert tuples of values to documents using column names
+            documents = []
+            for value_tuple in values:
+                document = {}
+                for i, column in enumerate(columns):
+                    if i < len(value_tuple):
+                        document[column] = value_tuple[i]
                 
-            logger.debug(f"Inserted {len(values)} rows into {schema}.{table}")
+                # Add timestamp
+                document['timestamp'] = datetime.now()
+                documents.append(document)
+            
+            # Insert the documents
+            result = collection.insert_many(documents)
+            
+            logger.debug(f"Inserted {len(result.inserted_ids)} documents into collection {collection_name}")
             return True
         except Exception as e:
-            logger.error(f"Error inserting data into {schema}.{table}: {str(e)}")
+            logger.error(f"Error inserting data into collection {table}: {str(e)}")
             return False
     
     def get_video_info(self, file_pattern):
@@ -162,105 +157,26 @@ class DatabaseIO:
             dict: Video information or None if not found
         """
         try:
-            query = """
-            SELECT id, file_name, file_path, height, width, fps, duration
-            FROM video.videos
-            WHERE file_name LIKE %s
-            LIMIT 1
-            """
+            collection_name = self.collections_config['videos']
+            collection = self._get_collection(collection_name)
             
-            results = self.execute_query(query, (file_pattern,))
+            # Create a regex pattern for file name search
+            import re
+            pattern = re.compile(f".*{file_pattern}.*", re.IGNORECASE)
             
-            if results and len(results) > 0:
-                row = results[0]
-                return {
-                    "id": row["id"],
-                    "file_name": row["file_name"],
-                    "file_path": row["file_path"],
-                    "height": row["height"],
-                    "width": row["width"],
-                    "fps": row["fps"],
-                    "duration": row["duration"]
-                }
+            # Find the video document
+            video_doc = collection.find_one({'file_name': pattern})
+            
+            if video_doc:
+                # Convert MongoDB _id to string for JSON serialization
+                if '_id' in video_doc:
+                    video_doc['_id'] = str(video_doc['_id'])
+                return video_doc
             return None
         except Exception as e:
             logger.error(f"Error retrieving video info for {file_pattern}: {str(e)}")
             return None
-            
-    def create_tables_if_not_exist(self):
-        """Create database tables if they don't exist
-        
-        Creates the necessary schema and tables for the pipeline.
-        
-        Returns:
-            bool: True on success, False on failure
-        """
-        try:
-            # Create schemas
-            schemas = ["video", "results", "metadata"]
-            with self.get_cursor() as cursor:
-                for schema in schemas:
-                    cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
-            
-            # Create videos table
-            video_table_query = """
-            CREATE TABLE IF NOT EXISTS video.videos (
-                id SERIAL PRIMARY KEY,
-                file_name TEXT NOT NULL,
-                file_path TEXT NOT NULL,
-                height INTEGER,
-                width INTEGER,
-                fps FLOAT,
-                duration FLOAT,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-            """
-            
-            # Create boxes table
-            boxes_table_query = """
-            CREATE TABLE IF NOT EXISTS results.boxes (
-                id SERIAL PRIMARY KEY,
-                video_id TEXT NOT NULL,
-                frame_number INTEGER NOT NULL,
-                box_id INTEGER,
-                x1 INTEGER,
-                y1 INTEGER,
-                x2 INTEGER,
-                y2 INTEGER,
-                confidence FLOAT,
-                class_id INTEGER,
-                class_name TEXT
-            )
-            """
-            
-            # Create box_motion table
-            motion_table_query = """
-            CREATE TABLE IF NOT EXISTS results.box_motion (
-                id SERIAL PRIMARY KEY,
-                video_id TEXT NOT NULL,
-                frame_number INTEGER NOT NULL,
-                box_id INTEGER,
-                num_points INTEGER,
-                mean_dx FLOAT,
-                mean_dy FLOAT,
-                magnitude FLOAT,
-                angle_radians FLOAT,
-                angle_degrees FLOAT
-            )
-            """
-            
-            # Execute table creation queries
-            with self.get_cursor() as cursor:
-                cursor.execute(video_table_query)
-                cursor.execute(boxes_table_query)
-                cursor.execute(motion_table_query)
-                
-            logger.info("Database tables created successfully")
-            return True
-        except Exception as e:
-            logger.error(f"Error creating database tables: {str(e)}")
-            return False
-
+    
     def register_video_file(self, file_path):
         """Register a new video file in the database
         
@@ -292,31 +208,118 @@ class DatabaseIO:
             # Release the video capture
             cap.release()
             
+            # Prepare the video document
+            video_doc = {
+                'file_name': file_name,
+                'file_path': file_path,
+                'height': height,
+                'width': width,
+                'fps': fps,
+                'frame_count': frame_count,
+                'duration': duration,
+                'timestamp': datetime.now()
+            }
+            
             # Insert into database
-            query = """
-            INSERT INTO video.videos (file_name, file_path, height, width, fps, duration)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id
-            """
-            params = (file_name, file_path, height, width, fps, duration)
+            collection_name = self.collections_config['videos']
+            collection = self._get_collection(collection_name)
             
-            results = self.execute_query(query, params)
+            # Use upsert to update if exists or insert if not
+            result = collection.update_one(
+                {'file_name': file_name},
+                {'$set': video_doc},
+                upsert=True
+            )
             
-            if results and len(results) > 0:
-                video_id = results[0]["id"]
-                logger.info(f"Registered video file in database: {file_name} with ID {video_id}")
-                
-                # Return the video info dictionary
-                return {
-                    "id": video_id,
-                    "file_name": file_name,
-                    "file_path": file_path,
-                    "height": height,
-                    "width": width,
-                    "fps": fps,
-                    "duration": duration
-                }
+            if result.acknowledged:
+                # Get the inserted document
+                inserted_doc = collection.find_one({'file_name': file_name})
+                if inserted_doc:
+                    # Convert MongoDB _id to string for compatibility
+                    inserted_doc['id'] = str(inserted_doc['_id'])
+                    logger.info(f"Registered video file in MongoDB: {file_name} with ID {inserted_doc['id']}")
+                    return inserted_doc
+            
             return None
         except Exception as e:
             logger.error(f"Error registering video file {file_path}: {str(e)}")
             return None
+
+    def get_results_boxes(self, model_no=None, file_name=None):
+        """Get boxes from the database
+        
+        Args:
+            model_no (str): Model number filter
+            file_name (str): Video file name filter
+            
+        Returns:
+            tuple: (List of box documents, List of column names)
+        """
+        try:
+            collection_name = self.collections_config['boxes']
+            collection = self._get_collection(collection_name)
+            
+            # Build query filters
+            query = {}
+            if model_no:
+                query['model_number'] = model_no
+            if file_name:
+                query['video_id'] = file_name
+                
+            # Get all matching documents
+            boxes = list(collection.find(query))
+            
+            # Extract column names from first document or use defaults
+            columns = list(boxes[0].keys()) if boxes else ['_id', 'video_id', 'frame_number', 'box_id', 
+                                                        'x1', 'y1', 'x2', 'y2', 'confidence', 
+                                                        'class_id', 'class_name']
+            
+            return boxes, columns
+        except Exception as e:
+            logger.error(f"Error retrieving boxes from database: {str(e)}")
+            return [], []
+    
+    def get_results_motion(self, model_no=None, file_name=None):
+        """Get motion data from the database
+        
+        Args:
+            model_no (str): Model number filter
+            file_name (str): Video file name filter
+            
+        Returns:
+            tuple: (List of motion documents, List of column names)
+        """
+        try:
+            # Get boxes first
+            boxes, _ = self.get_results_boxes(model_no, file_name)
+            
+            # Get motion data
+            motion_collection = self._get_collection(self.collections_config['motion'])
+            
+            # Build lookup of box_ids
+            box_ids = [box['box_id'] for box in boxes]
+            
+            # Query motion data for these box_ids
+            motion_docs = list(motion_collection.find({'box_id': {'$in': box_ids}}))
+            
+            # Join motion data with boxes
+            results = []
+            for box in boxes:
+                box_data = box.copy()
+                # Find matching motion data
+                motion = next((m for m in motion_docs if m['box_id'] == box['box_id']), {})
+                
+                # Add motion fields to box data
+                box_data['mean_delta_x'] = motion.get('mean_dx', 0)
+                box_data['mean_delta_y'] = motion.get('mean_dy', 0)
+                box_data['magnitude'] = motion.get('magnitude', 0)
+                
+                results.append(box_data)
+            
+            # Extract column names from first document or use defaults
+            columns = list(results[0].keys()) if results else []
+            
+            return results, columns
+        except Exception as e:
+            logger.error(f"Error retrieving motion data from database: {str(e)}")
+            return [], []

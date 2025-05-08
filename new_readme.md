@@ -14,7 +14,7 @@ A comprehensive toolkit for analyzing traffic patterns in Jakarta using computer
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.12.3 (tested)
 - PostgreSQL database
 - FFmpeg (for video processing)
 - CUDA-compatible GPU (recommended for object detection)
