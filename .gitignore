@@ -12,3 +12,4 @@ logs/
 *.pt
 *.zip
 *.tar
+!jakarta_analyze/modules/models

@@ -1,94 +1,143 @@
 pipeline:
-    name: test_pipeline
-    tasks:  # The list of tasks which create the Directed Acyclic Graph of tasks in this task list. See each class for descriptions of the parameters
-        - worker_type: ReadFramesFromVidFilesInDir
-          name: readVid
-          prev_task: 
-          num_workers: 1
-          output_queue_size: 100
-          vid_dir: # directory where input videos exist
-          file_regex: ^Pluit(.*).mkv  # regular expression which matches correspond to desired input files. 
-        - worker_type: Yolo3Detect
-          name: objectDetect
-          prev_task: readVid
-          num_workers: 1
-          output_queue_size: 120
-          buffer_size: 100
-          gpu: 0
-          gpu_share: 0.9
-          weights_path: /path/to/weights/file.weights
-          frame_key: frame
-          annotate_result_frame_key: boxed_frame
-          object_detect_threshold: 0.4
-          class_nonzero_threshold: 0.4
-          non_maximal_box_suppression: True
-          non_maximal_box_suppression_threshold: 0.4
-        - worker_type: LKSparseOpticalFlow
-          name: motionDetect
-          prev_task: objectDetect
-          num_workers: 1
-          output_queue_size: 100
-          frame_key: frame
-          annotate_frame_key: frame
-          annotate_result_frame_key: pathed_frame
-          backward_pass: False
-          new_point_detect_interval: ~
-          new_point_detect_interval_per_second: 5
-          how_many_track_new_points_before_clearing_points: 30
-          new_point_occlusion_radius: 5
-          good_flow_difference_threshold: 1
-          bg_mask_key:
-          winSize: [20, 20]
-          maxLevel: 3
-          maxCorners: 500
-          qualityLevel: 0.3
-          minDistance: 7
-          blockSize: 7
-        - worker_type: MeanMotionDirection
-          name: meanMotion
-          prev_task: motionDetect
-          num_workers: 1
-          output_queue_size: 100
-          annotate_result_frame_key: mean_motion
-          stationary_threshold: 1  # pixels
-        - worker_type: WriteKeysToDatabaseTable
-          name: writeBoxesDB
-          prev_task: objectDetect
-          num_workers: 1
-          buffer_size: 50
-          output_queue_size: ~
-          keys: [boxes]
-          keys_headers: [boxes_header]
-          additional_data: [box_id]
-          schemas: [results]
-          tables: [boxes]
-          field_separator: "\t"
-        - worker_type: WriteKeysToDatabaseTable
-          name: writeMotionDB
-          prev_task: meanMotion
-          num_workers: 1
-          buffer_size: 50
-          output_queue_size: ~
-          keys: [points_grouped_by_box]
-          keys_headers: [points_grouped_by_box_header]
-          additional_data: [box_id]
-          schemas: [results]
-          tables: [box_motion]
-          field_separator: "\t"
-        - worker_type: WriteFramesToVidFiles
-          name: writeVid
-          prev_task: objectDetect
-          num_workers: 1
-          buffer_size: 1500
-          output_queue_size: ~
-          frame_key: "boxed_frame"
-        - worker_type: WriteFramesToVidFiles
-          name: writeVid
-          prev_task: motionDetect
-          num_workers: 1
-          buffer_size: 1500
-          output_queue_size: ~
-          frame_key: "pathed_frame"
-    options: # options for the queue visualization in the printed output
-        queue_monitor_meter_size: 10  # size of the meters
-        queue_monitor_delay_seconds: 10  # how long to wait between printing the queues. 
+  name: test_pipeline
+  options:
+    queue_monitor_delay_seconds: 10
+    queue_monitor_meter_size: 10
+  tasks:
+  - file_regex: .*\.mp4
+    name: readVid
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: null
+    vid_dir: downloaded_videos
+    worker_type: ReadFramesFromVidFilesInDir
+  - annotate_result_frame_key: boxed_frame
+    buffer_size: 100
+    class_nonzero_threshold: 0.4
+    frame_key: frame
+    gpu: 0
+    gpu_share: 0.9
+    name: objectDetect
+    non_maximal_box_suppression: true
+    non_maximal_box_suppression_threshold: 0.4
+    num_workers: 1
+    object_detect_threshold: 0.4
+    output_queue_size: 120
+    prev_task: readVid
+    weights_path: models/yolo3u.pt
+    worker_type: Yolo3Detect
+  - annotate_frame_key: boxed_frame
+    annotate_result_frame_key: pathed_frame
+    backward_pass: false
+    bg_mask_key: null
+    blockSize: 7
+    frame_key: frame
+    good_flow_difference_threshold: 1
+    how_many_track_new_points_before_clearing_points: 30
+    maxCorners: 500
+    maxLevel: 3
+    minDistance: 7
+    name: motionDetect
+    new_point_detect_interval: null
+    new_point_detect_interval_per_second: 5
+    new_point_occlusion_radius: 5
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: objectDetect
+    qualityLevel: 0.3
+    winSize:
+    - 20
+    - 20
+    worker_type: LKSparseOpticalFlow
+    # Rename output keys to match what MeanMotionDirection expects
+    rename_outputs:
+      points: tracked_points
+      flows: tracked_flows
+  - annotate_result_frame_key: mean_motion
+    name: meanMotion
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: motionDetect
+    stationary_threshold: 1
+    worker_type: MeanMotionDirection
+    # Map the data columns to match expected database schema
+    mapping:
+      points_grouped_by_box:
+        0: box_id
+        1: point_count
+        2: avg_motion_x
+        3: avg_motion_y
+        4: motion_magnitude
+        6: motion_direction  # Use degrees instead of radians
+  - additional_data:
+    - box_id 
+    buffer_size: 50
+    field_separator: "\t"
+    keys:
+    - boxes
+    # Remove the keys_headers which is causing issues
+    # keys_headers:
+    # - boxes_header
+    name: writeBoxesDB
+    num_workers: 1
+    output_queue_size: null
+    prev_task: objectDetect
+    schemas:
+    - results
+    tables:
+    - boxes
+    worker_type: WriteKeysToDatabaseTable
+    # Define columns to match database schema
+    columns:
+    - video_name
+    - frame_number
+    - box_id
+    - label
+    - confidence
+    - x_min
+    - y_min
+    - x_max
+    - y_max
+
+  - additional_data:
+    - box_id
+    buffer_size: 50
+    field_separator: "\t"
+    keys:
+    - points_grouped_by_box
+    # Remove the keys_headers which is causing issues
+    # keys_headers:
+    # - points_grouped_by_box_header
+    name: writeMotionDB
+    num_workers: 1
+    output_queue_size: null
+    prev_task: meanMotion
+    schemas:
+    - results
+    tables:
+    - box_motion
+    worker_type: WriteKeysToDatabaseTable
+    # Define columns to match database schema
+    columns:
+    - video_name
+    - frame_number
+    - box_id
+    - point_count
+    - avg_motion_x
+    - avg_motion_y
+    - motion_magnitude
+    - motion_direction
+  - buffer_size: 1500
+    frame_key: boxed_frame
+    name: writeVid
+    num_workers: 1
+    output_queue_size: null
+    prev_task: objectDetect
+    worker_type: WriteFramesToVidFiles
+  - buffer_size: 1500
+    frame_key: pathed_frame
+    name: writeVid
+    num_workers: 1
+    output_queue_size: null
+    prev_task: motionDetect
+    worker_type: WriteFramesToVidFiles

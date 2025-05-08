@@ -77,6 +77,24 @@ def main():
     pipeline_parser.add_argument('-l', '--log', choices=['debug', 'info', 'warning', 'error'],
                               default='info', help='Logging level')
     
+    # Download Model command
+    model_parser = subparsers.add_parser('download-model',
+                                        help='Download models from Ultralytics Hub')
+    model_parser.add_argument('model_name',
+                             help='Name of the model to download (e.g., yolov8n, yolo11m)')
+    model_parser.add_argument('-o', '--output-dir',
+                             help='Directory to save the model to (overrides config)')
+    model_parser.add_argument('-f', '--force', action='store_true',
+                             help='Force download even if model already exists')
+    model_parser.add_argument('--api-key',
+                             help='Ultralytics API key for private models (or set ULTRALYTICS_API_KEY env var)')
+    model_parser.add_argument('-l', '--log', choices=['debug', 'info', 'warning', 'error'],
+                              default='info', help='Logging level')
+    model_parser.add_argument('--list', action='store_true',
+                             help='List available models instead of downloading')
+    model_parser.add_argument('--hub', action='store_true',
+                             help='Download from Ultralytics Hub using API (requires ultralytics package)')
+    
     # Parse arguments
     args = parser.parse_args()
     
@@ -127,6 +145,22 @@ def main():
             cmd_args.extend(['--videos-dir', args.videos_dir])
         if args.output_dir:
             cmd_args.extend(['--output-dir', args.output_dir])
+        return module.main(cmd_args)
+    elif args.command == 'download-model':
+        # Import the module dynamically
+        module = importlib.import_module('jakarta_analyze.main.download_model')
+        # Call the main function with parsed arguments
+        cmd_args = [args.model_name]
+        if args.output_dir:
+            cmd_args.extend(['--output-dir', args.output_dir])
+        if args.force:
+            cmd_args.append('--force')
+        if args.api_key:
+            cmd_args.extend(['--api-key', args.api_key])
+        if args.list:
+            cmd_args.append('--list')
+        if args.hub:
+            cmd_args.append('--hub')
         return module.main(cmd_args)
     else:
         logger.error(f"Unknown command: {args.command}")
