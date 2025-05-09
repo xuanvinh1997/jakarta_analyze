@@ -8,14 +8,14 @@ A comprehensive toolkit for analyzing traffic patterns in Jakarta using computer
 - **Metadata Extraction**: Extract and analyze metadata from video files
 - **Visualization Tools**: Create visualizations of video analysis results
 - **Model Management**: Download and update AI models from Ultralytics Hub
-- **Database Integration**: Store and query analysis results in PostgreSQL
+- **Database Integration**: Store and query analysis results in MongoDB
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.12.3 (tested)
-- PostgreSQL database
+- MongoDB database
 - FFmpeg (for video processing)
 - CUDA-compatible GPU (recommended for object detection)
 
@@ -43,6 +43,14 @@ A comprehensive toolkit for analyzing traffic patterns in Jakarta using computer
    ```
 
 ## Quick Start
+
+### Download and Prepare Videos
+Download traffic videos from the Jakarta dataset and prepare them for analysis:
+
+```bash
+# Download videos
+python -m jakarta_analyze download-videos 
+```
 
 ### Extract Video Metadata
 
@@ -129,12 +137,13 @@ Database connection settings:
 
 ```yaml
 database:
-  host: localhost
-  port: 5432
+  mongo_uri: "mongodb://localhost:27017"
   dbname: jakarta_traffic
-  user: jakarta
-  password: jakarta_password
-  schema: results
+  timeout: 30000  # Timeout in milliseconds
+  collections:
+    videos: videos
+    boxes: boxes
+    motion: box_motion
 ```
 
 ## Command Line Interface
@@ -214,14 +223,30 @@ The analysis pipeline consists of several tasks:
 
 ## Database Schema
 
-The toolkit uses two main tables in the PostgreSQL database:
+The toolkit uses MongoDB with the following collections:
+
+### videos
+
+Stores information about processed videos:
+
+- `_id`: MongoDB document ID
+- `file_name`: Name of the video file
+- `file_path`: Full path to the video file
+- `camera_id`: Camera identifier
+- `timestamp`: Video capture timestamp
+- `duration_seconds`: Video duration
+- `frame_count`: Total number of frames
+- `fps`: Frames per second
+- `height`: Video height in pixels
+- `width`: Video width in pixels
 
 ### boxes
 
 Stores object detection results:
 
-- `id`: Serial primary key
+- `_id`: MongoDB document ID
 - `box_id`: Unique identifier for detected object
+- `video_id`: Reference to the video document
 - `frame_number`: Frame number in the video
 - `video_name`: Name of the video file
 - `label`: Object class (car, pedestrian, etc.)
@@ -233,8 +258,9 @@ Stores object detection results:
 
 Stores motion tracking results:
 
-- `id`: Serial primary key
+- `_id`: MongoDB document ID
 - `box_id`: Unique identifier for detected object
+- `video_id`: Reference to the video document
 - `frame_number`: Frame number in the video
 - `video_name`: Name of the video file
 - `point_count`: Number of tracked points
@@ -292,15 +318,63 @@ The toolkit supports various YOLO models:
 - `yolov8x`: Extra large model, most accurate
 - `yolo11m`: Latest YOLOv11 medium model
 
+### Using as a Python Package
+
+You can import the package's modules directly in your Python code:
+
+```python
+import jakarta_analyze
+from jakarta_analyze import get_config, setup, IndentLogger
+import logging
+
+# Initialize logging
+logger = IndentLogger(logging.getLogger(''), {})
+setup("my_script")
+
+# Get configuration
+conf = get_config()
+
+# Use the configuration
+logger.info(f"Working with configuration: {conf}")
+```
+
+### Configuration File Search Path
+
+The toolkit looks for configuration files in the following order:
+
+1. If `JAKARTA_CONFIG_PATH` environment variable is set, it uses that file directly
+2. If not set, it checks these locations in order:
+   - `config_examples/config.yml` in the project root
+   - `config.yml` in the project root
+   - If none found, returns an empty configuration
+
+### Converting from Original Project Structure
+
+If you have code that uses the original project structure, update your imports:
+
+From:
+```python
+from src.modules.utils.setup import setup, IndentLogger
+from src.modules.utils.config_loader import get_config
+```
+
+To:
+```python
+from jakarta_analyze.modules.utils.setup import setup, IndentLogger
+from jakarta_analyze.modules.utils.config_loader import get_config
+```
+
+And remove any references to `JAKARTAPATH` and `PYTHONPATH` environment variables.
+
 ## Troubleshooting
 
 ### Database Connection Issues
 
 If you encounter database connection issues:
 
-1. Check that PostgreSQL is running
-2. Verify the credentials in `database.yml`
-3. Ensure the required schema and tables exist
+1. Check that MongoDB is running
+2. Verify the MongoDB connection URI in `database.yml`
+3. Ensure the database has the required collections
 
 ### Video Processing Errors
 
