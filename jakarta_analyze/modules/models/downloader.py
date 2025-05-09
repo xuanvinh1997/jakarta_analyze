@@ -25,7 +25,9 @@ DEFAULT_MODELS = {
     'yolov8m': 'https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8m.pt',
     'yolov8l': 'https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8l.pt',
     'yolov8x': 'https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8x.pt',
-    'yolo11m': 'https://github.com/ultralytics/assets/releases/download/v8.1.0/yolo11m.pt'
+    'yolo11m': 'https://github.com/ultralytics/assets/releases/download/v8.1.0/yolo11m.pt',
+    'yolo11m-seg': 'https://github.com/ultralytics/assets/releases/download/v8.1.0/yolo11m-seg.pt'
+
 }
 
 

@@ -12,8 +12,8 @@ pipeline:
     vid_dir: downloaded_videos
     worker_type: ReadFramesFromVidFilesInDir
   - log_level: INFO
-    log_values: true
     log_sample_interval: 20
+    log_values: true
     name: logKeysAfterRead
     num_workers: 1
     output_queue_size: 100
@@ -32,11 +32,11 @@ pipeline:
     object_detect_threshold: 0.4
     output_queue_size: 120
     prev_task: logKeysAfterRead
-    weights_path: models/yolo3u.pt
+    weights_path: models/yolo11m.pt
     worker_type: Yolo3Detect
   - log_level: INFO
-    log_values: true
     log_sample_interval: 20
+    log_values: true
     name: logKeysAfterDetect
     num_workers: 1
     output_queue_size: 100
@@ -61,30 +61,22 @@ pipeline:
     output_queue_size: 100
     prev_task: logKeysAfterDetect
     qualityLevel: 0.3
+    rename_outputs:
+      flows: tracked_flows
+      points: tracked_points
     winSize:
     - 20
     - 20
     worker_type: LKSparseOpticalFlow
-    # Rename output keys to match what MeanMotionDirection expects
-    rename_outputs:
-      points: tracked_points
-      flows: tracked_flows
   - log_level: INFO
-    log_values: true
     log_sample_interval: 20
+    log_values: true
     name: logKeysAfterMotion
     num_workers: 1
     output_queue_size: 100
     prev_task: motionDetect
     worker_type: LogAllKeys
   - annotate_result_frame_key: mean_motion
-    name: meanMotion
-    num_workers: 1
-    output_queue_size: 100
-    prev_task: logKeysAfterMotion
-    stationary_threshold: 1
-    worker_type: MeanMotionDirection
-    # Map the data columns to match expected database schema
     mapping:
       points_grouped_by_box:
         0: box_id
@@ -92,18 +84,34 @@ pipeline:
         2: avg_motion_x
         3: avg_motion_y
         4: motion_magnitude
-        6: motion_direction  # Use degrees instead of radians
+        6: motion_direction
+    name: meanMotion
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: logKeysAfterMotion
+    stationary_threshold: 1
+    worker_type: MeanMotionDirection
   - log_level: INFO
-    log_values: true
     log_sample_interval: 20
+    log_values: true
     name: logKeysAfterMeanMotion
     num_workers: 1
     output_queue_size: 100
     prev_task: meanMotion
     worker_type: LogAllKeys
   - additional_data:
-    - box_id 
+    - box_id
     buffer_size: 50
+    columns:
+    - video_id
+    - frame_number
+    - box_id
+    - class_name
+    - confidence
+    - x1
+    - y1
+    - x2
+    - y2
     field_separator: "\t"
     keys:
     - boxes
@@ -112,29 +120,25 @@ pipeline:
     output_queue_size: null
     prev_task: objectDetect
     schemas:
-    - mongodb # This specifies the MongoDB database name to use
+    - mongodb
     tables:
-    - boxes   # This maps to the collection name in MongoDB
-    worker_type: WriteKeysToDatabaseTable
-    # Define columns matching MongoDB document structure
-    columns:
-    - video_id  # changed from video_name to video_id to match MongoDB naming
-    - frame_number
-    - box_id
-    - class_name  # changed from label to class_name to match MongoDB naming
-    - confidence
-    - x1         # Using x1,y1,x2,y2 format for MongoDB
-    - y1
-    - x2
-    - y2
-    # Define transforms for MongoDB document structure
+    - boxes
     transforms:
       boxes:
-        format: "{video_id},{frame_number},{box_id},{class_name},{confidence},{x1},{y1},{x2},{y2}"
-
+        format: '{video_id},{frame_number},{box_id},{class_name},{confidence},{x1},{y1},{x2},{y2}'
+    worker_type: WriteKeysToDatabaseTable
   - additional_data:
     - box_id
     buffer_size: 50
+    columns:
+    - video_id
+    - frame_number
+    - box_id
+    - num_points
+    - mean_dx
+    - mean_dy
+    - magnitude
+    - angle_degrees
     field_separator: "\t"
     keys:
     - points_grouped_by_box
@@ -143,34 +147,23 @@ pipeline:
     output_queue_size: null
     prev_task: meanMotion
     schemas:
-    - mongodb  # This specifies the MongoDB database name to use
+    - mongodb
     tables:
-    - box_motion  # This maps to the collection name in MongoDB
-    worker_type: WriteKeysToDatabaseTable
-    # Define columns matching MongoDB document structure
-    columns:
-    - video_id  # changed from video_name to video_id to match MongoDB naming
-    - frame_number
-    - box_id
-    - num_points  # changed from point_count to num_points to match MongoDB naming
-    - mean_dx     # changed from avg_motion_x to mean_dx to match MongoDB naming  
-    - mean_dy     # changed from avg_motion_y to mean_dy to match MongoDB naming
-    - magnitude
-    - angle_degrees  # Using angle_degrees for MongoDB
-    # Define transforms for MongoDB document structure
+    - box_motion
     transforms:
       points_grouped_by_box:
-        format: "{video_id},{frame_number},{box_id},{num_points},{mean_dx},{mean_dy},{magnitude},{angle_degrees}"
-  - buffer_size: 100  # Reduced from 1500
+        format: '{video_id},{frame_number},{box_id},{num_points},{mean_dx},{mean_dy},{magnitude},{angle_degrees}'
+    worker_type: WriteKeysToDatabaseTable
+  - buffer_size: 100
     frame_key: boxed_frame
-    name: writeBoxedFrameVid  # Unique name
+    name: writeBoxedFrameVid
     num_workers: 1
     output_queue_size: null
     prev_task: logKeysAfterDetect
     worker_type: WriteFramesToVidFiles
-  - buffer_size: 100  # Reduced from 1500
+  - buffer_size: 100
     frame_key: pathed_frame
-    name: writePathedFrameVid  # Unique name
+    name: writePathedFrameVid
     num_workers: 1
     output_queue_size: null
     prev_task: logKeysAfterMotion

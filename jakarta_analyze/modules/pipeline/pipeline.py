@@ -149,6 +149,7 @@ class Pipeline:
             worker_registry = {
                 'ReadFramesFromVidFilesInDir': 'jakarta_analyze.modules.pipeline.workers.read_frames_from_vid_files_in_dir.ReadFramesFromVidFilesInDir',
                 'Yolo3Detect': 'jakarta_analyze.modules.pipeline.workers.yolo3_detect.Yolo3Detect',
+                'Yolo11mSegDetect': 'jakarta_analyze.modules.pipeline.workers.yolo11m_seg_detect.Yolo11mSegDetect',
                 'LKSparseOpticalFlow': 'jakarta_analyze.modules.pipeline.workers.lk_sparse_optical_flow.LKSparseOpticalFlow',
                 'MeanMotionDirection': 'jakarta_analyze.modules.pipeline.workers.mean_motion_direction.MeanMotionDirection',
                 # 'WriteKeysToDatabaseTable': 'jakarta_analyze.modules.pipeline.workers.write_keys_to_database_table.WriteKeysToDatabaseTable',
@@ -264,6 +265,19 @@ class Pipeline:
                         'points_key': 'tracked_points',
                         'flows_key': 'tracked_flows',
                         'boxes_key': 'boxes'
+                    }
+                    # Only add defaults if keys don't exist
+                    for key, value in defaults.items():
+                        if key not in worker_kwargs:
+                            worker_kwargs[key] = value
+                
+                elif worker_type == 'Yolo11mSegDetect':
+                    # Default parameters for Yolo11mSegDetect if not provided
+                    defaults = {
+                        'annotation_font_scale': 0.75,
+                        'annotate_frame_key': worker_kwargs.get('frame_key', 'frame'),
+                        'config_path': os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'config.yml'),
+                        'sidewalk_overlap_threshold': 0.3,
                     }
                     # Only add defaults if keys don't exist
                     for key, value in defaults.items():

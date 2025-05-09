@@ -127,6 +127,7 @@ pipeline:
     - avg_motion_y
     - motion_magnitude
     - motion_direction
+  
   - buffer_size: 1500
     frame_key: boxed_frame
     name: writeVid

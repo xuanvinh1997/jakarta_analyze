@@ -1,0 +1,132 @@
+pipeline:
+  name: dual_yolo_detection
+  options:
+    queue_monitor_delay_seconds: 10
+    queue_monitor_meter_size: 10
+  tasks:
+  # Common video input source
+  - file_regex: .*\.mp4
+    name: readVid
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: null
+    vid_dir: downloaded_videos
+    worker_type: ReadFramesFromVidFilesInDir
+    
+  # YOLOv3 detection branch
+  - annotate_result_frame_key: yolov3_boxed_frame
+    buffer_size: 100
+    class_nonzero_threshold: 0.4
+    frame_key: frame
+    gpu: 0
+    gpu_share: 0.45  # Split GPU resources
+    name: yolov3Detect
+    non_maximal_box_suppression: true
+    non_maximal_box_suppression_threshold: 0.4
+    num_workers: 1
+    object_detect_threshold: 0.4
+    output_queue_size: 120
+    prev_task: readVid
+    weights_path: models/yolo3u.pt
+    worker_type: Yolo3Detect
+    
+  # YOLOv11m-seg detection branch
+  - annotate_result_frame_key: yolo11m_boxed_frame
+    buffer_size: 100
+    class_nonzero_threshold: 0.4
+    frame_key: frame
+    gpu: 0
+    gpu_share: 0.45  # Split GPU resources
+    name: yolo11mDetect
+    non_maximal_box_suppression: true
+    non_maximal_box_suppression_threshold: 0.4
+    num_workers: 1
+    object_detect_threshold: 0.4
+    output_queue_size: 120
+    prev_task: readVid
+    weights_path: models/yolo11m-seg.pt
+    sidewalk_overlap_threshold: 0.3
+    worker_type: Yolo11mSegDetect
+    
+  # Optical flow processing for YOLOv3 branch
+  - annotate_frame_key: yolov3_boxed_frame
+    annotate_result_frame_key: yolov3_pathed_frame
+    backward_pass: false
+    bg_mask_key: null
+    blockSize: 7
+    frame_key: frame
+    good_flow_difference_threshold: 1
+    how_many_track_new_points_before_clearing_points: 30
+    maxCorners: 500
+    maxLevel: 3
+    minDistance: 7
+    name: yolov3MotionDetect
+    new_point_detect_interval: null
+    new_point_detect_interval_per_second: 5
+    new_point_occlusion_radius: 5
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: yolov3Detect
+    qualityLevel: 0.3
+    winSize:
+    - 20
+    - 20
+    worker_type: LKSparseOpticalFlow
+    
+  # Optical flow processing for YOLOv11m branch
+  - annotate_frame_key: yolo11m_boxed_frame
+    annotate_result_frame_key: yolo11m_pathed_frame
+    backward_pass: false
+    bg_mask_key: null
+    blockSize: 7
+    frame_key: frame
+    good_flow_difference_threshold: 1
+    how_many_track_new_points_before_clearing_points: 30
+    maxCorners: 500
+    maxLevel: 3
+    minDistance: 7
+    name: yolo11mMotionDetect
+    new_point_detect_interval: null
+    new_point_detect_interval_per_second: 5
+    new_point_occlusion_radius: 5
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: yolo11mDetect
+    qualityLevel: 0.3
+    winSize:
+    - 20
+    - 20
+    worker_type: LKSparseOpticalFlow
+    
+  # Output videos for YOLOv3 results
+  - file_regex: (.+)\.mp4
+    buffer_size: 1500
+    frame_key: yolov3_pathed_frame
+    name: writeYolov3Vid
+    num_workers: 1
+    output_dir: outputs/yolov3_results
+    output_queue_size: 100
+    prev_task: yolov3MotionDetect
+    worker_type: WriteFramesToVidFiles
+    
+  # Output videos for YOLOv11m results
+  - file_regex: (.+)\.mp4
+    buffer_size: 1500
+    frame_key: yolo11m_pathed_frame
+    name: writeYolo11mVid
+    num_workers: 1
+    output_dir: outputs/yolo11m_results
+    output_queue_size: 100
+    prev_task: yolo11mMotionDetect
+    worker_type: WriteFramesToVidFiles
+    
+  # Store motorcycle sidewalk violations from YOLOv11m-seg
+  # - boxes_key: motorcycle_sidewalk_violations
+  #   file_path: outputs/yolo11m_results/sidewalk_violations.csv
+  #   frame_key: frame
+  #   name: writeViolations
+  #   num_workers: 1
+  #   output_queue_size: 100
+  #   prev_task: yolo11mDetect
+
+  #   worker_type: WriteKeysToFiles
