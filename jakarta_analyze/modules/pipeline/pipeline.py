@@ -151,7 +151,7 @@ class Pipeline:
                 'Yolo3Detect': 'jakarta_analyze.modules.pipeline.workers.yolo3_detect.Yolo3Detect',
                 'LKSparseOpticalFlow': 'jakarta_analyze.modules.pipeline.workers.lk_sparse_optical_flow.LKSparseOpticalFlow',
                 'MeanMotionDirection': 'jakarta_analyze.modules.pipeline.workers.mean_motion_direction.MeanMotionDirection',
-                'WriteKeysToDatabaseTable': 'jakarta_analyze.modules.pipeline.workers.write_keys_to_database_table.WriteKeysToDatabaseTable',
+                # 'WriteKeysToDatabaseTable': 'jakarta_analyze.modules.pipeline.workers.write_keys_to_database_table.WriteKeysToDatabaseTable',
                 'WriteFramesToVidFiles': 'jakarta_analyze.modules.pipeline.workers.write_frames_to_vid_files.WriteFramesToVidFiles',
                 'ComputeFrameStats': 'jakarta_analyze.modules.pipeline.workers.compute_frame_stats.ComputeFrameStats',
                 'WriteKeysToFiles': 'jakarta_analyze.modules.pipeline.workers.write_keys_to_files.WriteKeysToFiles',

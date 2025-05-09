@@ -23,19 +23,22 @@ class Yolo3Detect(PipelineWorker):
     def initialize(self, frame_key, annotate_result_frame_key=None, weights_path=None, 
                   object_detect_threshold=0.5, non_maximal_box_suppression_threshold=0.3, 
                   draw_boxes=True, class_nonzero_threshold=0.5, non_maximal_box_suppression=True,
-                  classes_filter=None, **kwargs):
-        """Initialize with YOLO parameters
+                  classes_filter=None, verify_boxes=True, min_box_area=100, aspect_ratio_range=(0.2, 5.0), **kwargs):
+        """Initialize YOLO detection
         
         Args:
-            frame_key (str): Key to access frame data
-            annotate_result_frame_key (str): Key to store annotated frame
-            weights_path (str): Path to YOLO weights file
+            frame_key (str): Key for accessing frame in item dictionary
+            annotate_result_frame_key (str): Key for storing annotated frame
+            weights_path (str): Path to YOLO weights
             object_detect_threshold (float): Confidence threshold for detections
-            non_maximal_box_suppression_threshold (float): Non-maximum suppression threshold
-            draw_boxes (bool): Whether to draw bounding boxes on the output frame
-            class_nonzero_threshold (float): Threshold for class probabilities
+            non_maximal_box_suppression_threshold (float): IoU threshold for NMS
+            draw_boxes (bool): Whether to draw boxes on annotated frame
+            class_nonzero_threshold (float): Threshold for class confidence
             non_maximal_box_suppression (bool): Whether to apply NMS
             classes_filter (list): List of class indices to keep (None for all classes)
+            verify_boxes (bool): Whether to apply additional verification to boxes
+            min_box_area (int): Minimum box area in pixels to be considered valid
+            aspect_ratio_range (tuple): Valid range for aspect ratio (width/height)
         """
         self.frame_key = frame_key
         self.annotate_frame_key = annotate_result_frame_key
@@ -46,13 +49,17 @@ class Yolo3Detect(PipelineWorker):
         self.classes_filter = classes_filter
         self.non_maximal_box_suppression = non_maximal_box_suppression
         self.class_threshold = class_nonzero_threshold
+        self.verify_boxes = verify_boxes
+        self.min_box_area = min_box_area
+        self.aspect_ratio_range = aspect_ratio_range
         
         # YOLO model will be loaded in startup()
         self.model = None
         
         self.logger.info(f"Initialized with weights: {weights_path}, "
                         f"confidence threshold: {object_detect_threshold}, "
-                        f"nms threshold: {non_maximal_box_suppression_threshold}")
+                        f"nms threshold: {non_maximal_box_suppression_threshold}, "
+                        f"verify_boxes: {verify_boxes}")
                         
         # Generate random colors for class visualization
         np.random.seed(42)  # for reproducibility
@@ -76,6 +83,52 @@ class Yolo3Detect(PipelineWorker):
         
         self.logger.info(f"YOLO model loaded in {time.time() - start_time:.2f} seconds")
         self.logger.info(f"Model information: {self.model.info()}")
+
+    def verify_detection(self, box):
+        """Verify if the detected box meets additional quality criteria
+        
+        Args:
+            box (dict): Detection box with x1, y1, x2, y2, confidence, class_id
+            
+        Returns:
+            bool: True if the box passes verification, False otherwise
+        """
+        # Extract box dimensions
+        x1, y1, x2, y2 = box["x1"], box["y1"], box["x2"], box["y2"]
+        width = x2 - x1
+        height = y2 - y1
+        
+        # Check if box has valid dimensions
+        if width <= 0 or height <= 0:
+            return False
+        
+        # Check minimum area requirement
+        area = width * height
+        if area < self.min_box_area:
+            return False
+        
+        # Check aspect ratio is within reasonable range
+        aspect_ratio = width / height
+        min_ratio, max_ratio = self.aspect_ratio_range
+        if aspect_ratio < min_ratio or aspect_ratio > max_ratio:
+            return False
+            
+        # Additional checks based on class
+        class_id = box["class_id"]
+        confidence = box["confidence"]
+        
+        # For vehicle classes (cars, trucks, buses), verify higher confidence for larger objects
+        vehicle_classes = [2, 5, 7]  # car, bus, truck
+        if class_id in vehicle_classes and area > 10000 and confidence < 0.6:
+            return False
+            
+        # For pedestrians, verify proportions
+        if class_id == 0 and (aspect_ratio > 0.8 or height < width):
+            # Pedestrians are typically taller than wide
+            if confidence < 0.7:  # require higher confidence for unusual proportions
+                return False
+        
+        return True
 
     def run(self, item):
         """Detect objects in a frame using Ultralytics YOLO
@@ -142,16 +195,23 @@ class Yolo3Detect(PipelineWorker):
                     "class_id": class_id,
                     "class_name": class_name
                 }
-                detected_boxes.append(detection)
                 
-                # Draw bounding box on annotated frame if not already drawn by result.plot()
-                if annotated_frame is not None and self.draw_boxes and not hasattr(result, 'plot'):
-                    color = tuple(map(int, self.colors[class_id % len(self.colors)]))
-                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+                # Apply additional verification if enabled
+                is_valid = True
+                if self.verify_boxes:
+                    is_valid = self.verify_detection(detection)
+                
+                if is_valid:
+                    detected_boxes.append(detection)
                     
-                    # Draw label
-                    label = f"{class_name}: {confidence:.2f}"
-                    cv2.putText(annotated_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    # Draw bounding box on annotated frame if not already drawn by result.plot()
+                    if annotated_frame is not None and self.draw_boxes and not hasattr(result, 'plot'):
+                        color = tuple(map(int, self.colors[class_id % len(self.colors)]))
+                        cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+                        
+                        # Draw label
+                        label = f"{class_name}: {confidence:.2f}"
+                        cv2.putText(annotated_frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         
         # Store results in item
         item["boxes"] = detected_boxes
@@ -162,7 +222,7 @@ class Yolo3Detect(PipelineWorker):
         
         # Log periodically
         if frame_number % 100 == 0:
-            self.logger.debug(f"Processed frame {frame_number}, detected {len(detected_boxes)} objects")
+            self.logger.debug(f"Processed frame {frame_number}, detected {len(detected_boxes)} valid objects out of {len(result.boxes)} detections")
         
         # Pass the item to the next worker
         self.done_with_item(item)

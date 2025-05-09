@@ -11,6 +11,14 @@ pipeline:
     prev_task: null
     vid_dir: downloaded_videos
     worker_type: ReadFramesFromVidFilesInDir
+  - log_level: INFO
+    log_values: true
+    log_sample_interval: 20
+    name: logKeysAfterRead
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: readVid
+    worker_type: LogAllKeys
   - annotate_result_frame_key: boxed_frame
     buffer_size: 100
     class_nonzero_threshold: 0.4
@@ -23,9 +31,17 @@ pipeline:
     num_workers: 1
     object_detect_threshold: 0.4
     output_queue_size: 120
-    prev_task: readVid
+    prev_task: logKeysAfterRead
     weights_path: models/yolo3u.pt
     worker_type: Yolo3Detect
+  - log_level: INFO
+    log_values: true
+    log_sample_interval: 20
+    name: logKeysAfterDetect
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: objectDetect
+    worker_type: LogAllKeys
   - annotate_frame_key: boxed_frame
     annotate_result_frame_key: pathed_frame
     backward_pass: false
@@ -43,7 +59,7 @@ pipeline:
     new_point_occlusion_radius: 5
     num_workers: 1
     output_queue_size: 100
-    prev_task: objectDetect
+    prev_task: logKeysAfterDetect
     qualityLevel: 0.3
     winSize:
     - 20
@@ -53,11 +69,19 @@ pipeline:
     rename_outputs:
       points: tracked_points
       flows: tracked_flows
+  - log_level: INFO
+    log_values: true
+    log_sample_interval: 20
+    name: logKeysAfterMotion
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: motionDetect
+    worker_type: LogAllKeys
   - annotate_result_frame_key: mean_motion
     name: meanMotion
     num_workers: 1
     output_queue_size: 100
-    prev_task: motionDetect
+    prev_task: logKeysAfterMotion
     stationary_threshold: 1
     worker_type: MeanMotionDirection
     # Map the data columns to match expected database schema
@@ -69,6 +93,14 @@ pipeline:
         3: avg_motion_y
         4: motion_magnitude
         6: motion_direction  # Use degrees instead of radians
+  - log_level: INFO
+    log_values: true
+    log_sample_interval: 20
+    name: logKeysAfterMeanMotion
+    num_workers: 1
+    output_queue_size: 100
+    prev_task: meanMotion
+    worker_type: LogAllKeys
   - additional_data:
     - box_id 
     buffer_size: 50
@@ -80,7 +112,7 @@ pipeline:
     output_queue_size: null
     prev_task: objectDetect
     schemas:
-    - results  # MongoDB ignores this but kept for compatibility
+    - mongodb # This specifies the MongoDB database name to use
     tables:
     - boxes   # This maps to the collection name in MongoDB
     worker_type: WriteKeysToDatabaseTable
@@ -111,7 +143,7 @@ pipeline:
     output_queue_size: null
     prev_task: meanMotion
     schemas:
-    - results  # MongoDB ignores this but kept for compatibility
+    - mongodb  # This specifies the MongoDB database name to use
     tables:
     - box_motion  # This maps to the collection name in MongoDB
     worker_type: WriteKeysToDatabaseTable
@@ -129,17 +161,17 @@ pipeline:
     transforms:
       points_grouped_by_box:
         format: "{video_id},{frame_number},{box_id},{num_points},{mean_dx},{mean_dy},{magnitude},{angle_degrees}"
-  - buffer_size: 1500
+  - buffer_size: 100  # Reduced from 1500
     frame_key: boxed_frame
-    name: writeVid
+    name: writeBoxedFrameVid  # Unique name
     num_workers: 1
     output_queue_size: null
-    prev_task: objectDetect
+    prev_task: logKeysAfterDetect
     worker_type: WriteFramesToVidFiles
-  - buffer_size: 1500
+  - buffer_size: 100  # Reduced from 1500
     frame_key: pathed_frame
-    name: writeVid
+    name: writePathedFrameVid  # Unique name
     num_workers: 1
     output_queue_size: null
-    prev_task: motionDetect
+    prev_task: logKeysAfterMotion
     worker_type: WriteFramesToVidFiles

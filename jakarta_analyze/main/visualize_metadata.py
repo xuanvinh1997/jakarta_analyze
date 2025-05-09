@@ -44,7 +44,70 @@ def load_metadata_files(frame_stats_dir, packet_stats_dir):
             if video_name not in metadata:
                 metadata[video_name] = {}
             
-            df = pd.read_csv(file_path)
+            # Read raw data as text first
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+                
+            if len(lines) < 2:
+                logger.warning(f"Empty or insufficient data in file: {file_path}")
+                continue
+                
+            header = lines[0].strip().split(',')
+            
+            # Check if we need to fix the CSV format
+            if 'pkt_size' in header and 'pict_type' in header:
+                # Check if the actual data rows match the expected column count
+                first_data_row = lines[1].strip().split(',')
+                if len(first_data_row) < len(header):
+                    logger.info(f"Detected malformed CSV in {file_path}, fixing format")
+                    
+                    # Custom CSV processing to separate numeric (pkt_size) and alpha (pict_type) parts
+                    fixed_lines = [lines[0]]  # Keep header as is
+                    
+                    for i in range(1, len(lines)):
+                        if not lines[i].strip():
+                            continue
+                            
+                        parts = lines[i].strip().split(',')
+                        if len(parts) < len(header):
+                            # Find position of pkt_size in header
+                            pkt_size_idx = header.index('pkt_size')
+                            
+                            if pkt_size_idx < len(parts):
+                                # Split the combined field into numeric and character parts
+                                combined_value = parts[pkt_size_idx]
+                                # Find where the numeric part ends
+                                for j in range(len(combined_value)):
+                                    if not combined_value[j].isdigit():
+                                        num_part = combined_value[:j]
+                                        char_part = combined_value[j:]
+                                        break
+                                else:
+                                    # No character part found
+                                    num_part = combined_value
+                                    char_part = ""
+                                
+                                # Create fixed line with proper separation
+                                parts[pkt_size_idx] = num_part
+                                # Insert the character part at the right position
+                                parts.insert(pkt_size_idx + 1, char_part)
+                            
+                        fixed_lines.append(','.join(parts))
+                        
+                    # Parse the fixed CSV data
+                    import io
+                    df = pd.read_csv(io.StringIO('\n'.join(fixed_lines)))
+                else:
+                    # CSV seems properly formatted
+                    df = pd.read_csv(file_path)
+            else:
+                # Standard CSV reading
+                df = pd.read_csv(file_path)
+            
+            # Convert pkt_size to numeric if present
+            if 'pkt_size' in df.columns:
+                df['pkt_size'] = pd.to_numeric(df['pkt_size'], errors='coerce')
+            
             metadata[video_name]['frame_stats'] = df
             logger.info(f"Loaded frame stats for {video_name}: {len(df)} records")
         except Exception as e:
@@ -85,9 +148,18 @@ def generate_frame_type_distribution(metadata, output_dir, file_format='pdf'):
             if 'pict_type' not in frame_stats.columns:
                 logger.warning(f"No picture type data for {video_name}, skipping frame type distribution")
                 continue
+            
+            # Check if pict_type column has valid data
+            if frame_stats['pict_type'].empty or frame_stats['pict_type'].isna().all():
+                logger.warning(f"No valid picture type data for {video_name}, skipping frame type distribution")
+                continue
                 
             # Count frame types
             frame_type_counts = frame_stats['pict_type'].value_counts()
+            
+            if len(frame_type_counts) == 0:
+                logger.warning(f"No frame types to count for {video_name}, skipping frame type distribution")
+                continue
             
             # Create visualization
             plt.figure(figsize=(10, 6))

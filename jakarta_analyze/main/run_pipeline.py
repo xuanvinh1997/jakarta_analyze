@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 import yaml
+import time
 # ====== External package imports ================
 # ====== Internal package imports ================
 from jakarta_analyze.modules.pipeline.pipeline import Pipeline
@@ -96,12 +97,59 @@ def main(args=None):
                 yaml.dump(pipe_conf, f)
             
         # Run the pipeline with the config file path
+        logger.info("=" * 50)
         logger.info("Starting video processing pipeline")
-        pl = Pipeline(config_file=parsed_args.config, out_path=output_dir)
-        pl.run()
-        logger.info("Pipeline processing completed successfully")
+        logger.info("=" * 50)
+        print("Pipeline processing started. Check logs for detailed progress.")
         
-        return 0
+        # Create completion marker file to indicate the pipeline is running
+        completion_marker = os.path.join(output_dir, "pipeline_completion.txt")
+        try:
+            with open(completion_marker, 'w') as f:
+                f.write("Pipeline started at: " + time.strftime("%Y-%m-%d %H:%M:%S") + "\n")
+                f.write("Status: RUNNING\n")
+        except Exception as e:
+            logger.warning(f"Could not create pipeline status marker: {str(e)}")
+        
+        # Run the pipeline
+        pl = Pipeline(config_file=parsed_args.config, out_path=output_dir)
+        start_time = time.time()
+        result = pl.run()
+        end_time = time.time()
+        
+        # Calculate processing time
+        processing_time = end_time - start_time
+        hours, remainder = divmod(processing_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        # Update completion marker file
+        try:
+            with open(completion_marker, 'w') as f:
+                f.write("Pipeline started at: " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)) + "\n")
+                f.write("Pipeline completed at: " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)) + "\n")
+                f.write(f"Processing time: {int(hours)}h {int(minutes)}m {int(seconds)}s\n")
+                f.write(f"Status: {'COMPLETED' if result else 'FAILED'}\n")
+        except Exception as e:
+            logger.warning(f"Could not update pipeline status marker: {str(e)}")
+        
+        logger.info("=" * 50)
+        if result:
+            status = "COMPLETED SUCCESSFULLY"
+        else:
+            status = "COMPLETED WITH ERRORS"
+        logger.info(f"Pipeline processing {status}")
+        logger.info(f"Processing time: {int(hours)}h {int(minutes)}m {int(seconds)}s")
+        logger.info(f"Output directory: {output_dir}")
+        logger.info("=" * 50)
+        
+        # Print a clear message to the console
+        print("\n" + "=" * 50)
+        print(f"Pipeline processing {status}")
+        print(f"Processing time: {int(hours)}h {int(minutes)}m {int(seconds)}s")
+        print(f"Output directory: {output_dir}")
+        print("=" * 50 + "\n")
+        
+        return 0 if result else 1
             
     except Exception as e:
         logger.error(f"Error running pipeline: {str(e)}")
